@@ -209,6 +209,17 @@ body.home-mode .content{padding:0}
 .dash-btn.secondary{background:var(--surface);color:var(--ink);border:1.5px solid var(--line)}
 .dash-btn.secondary:hover{border-color:var(--accent);color:var(--accent)}
 
+/* Week view */
+.week-progress{display:flex;align-items:center;gap:10px;margin-bottom:16px;animation:dashIn .4s cubic-bezier(.16,1,.3,1) .05s backwards}
+.week-progress-bar{flex:1;height:8px;background:var(--surface-3);border-radius:4px;overflow:hidden}
+.week-progress-fill{height:100%;background:var(--accent-grad);border-radius:4px;transition:width .5s cubic-bezier(.16,1,.3,1)}
+.week-progress-text{font-size:13px;font-weight:700;color:var(--accent);min-width:36px;text-align:right}
+.week-day{padding:10px 14px;border-radius:var(--r-sm);background:var(--surface);border:1px solid var(--line);margin-bottom:8px;animation:dashIn .35s cubic-bezier(.16,1,.3,1) backwards}
+.week-day.today{border-color:var(--accent);background:var(--accent-soft)}
+.week-day.past{opacity:.5}
+.week-day-empty{padding:4px 0;text-align:center;color:var(--ink-3);font-size:13px}
+.banner.week-banner{background:linear-gradient(135deg,rgba(99,102,241,.08),rgba(139,92,246,.04));border:1px solid rgba(99,102,241,.2);color:var(--accent);margin-bottom:16px}
+
 /* Copy button */
 .copy-btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border:1px solid var(--line);background:var(--surface);border-radius:999px;cursor:pointer;font-size:12.5px;font-weight:600;color:var(--ink-2);transition:all .15s;margin-bottom:14px}
 .copy-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
@@ -341,8 +352,10 @@ body.home-mode .content{padding:0}
       <div><div class="brand">今天和明天</div><div class="brand-sub">Daily Planner</div></div>
     </div>
     <nav class="nav" id="nav">
+      <div class="nav-lbl">计划</div>
+      <div class="nav-item active" data-view="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg><span>本周计划</span></div>
+      <div class="nav-item" data-view="nextweek"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/><path d="M16 16l2 2 4-4"/></svg><span>下周计划</span><span class="ct" id="ct-nextweek">0</span></div>
       <div class="nav-lbl">每日</div>
-      <div class="nav-item active" data-view="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg><span>首页</span></div>
       <div class="nav-item" data-view="today"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>今天</span><span class="ct" id="ct-today">0</span></div>
       <div class="nav-item" data-view="tomorrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg><span>明天</span><span class="ct" id="ct-tomorrow">0</span></div>
       <div class="nav-lbl">追踪</div>
@@ -398,7 +411,7 @@ body.home-mode .content{padding:0}
 <!-- Push Prompt -->
 <div class="push-prompt" id="pushPrompt">
   <div class="pp-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg></div>
-  <div class="pp-txt"><div class="pp-t">开启推送提醒</div><div class="pp-d">每晚10点规划明天，每早10点提醒今日</div></div>
+  <div class="pp-txt"><div class="pp-t">开启推送提醒</div><div class="pp-d">每周五下午4点提醒规划下周</div></div>
   <div class="pp-btns"><button class="pp-btn no" onclick="document.getElementById('pushPrompt').classList.remove('show');localStorage.setItem('tt_push_dismissed','1')">以后</button><button class="pp-btn yes" onclick="togglePush();document.getElementById('pushPrompt').classList.remove('show')">开启</button></div>
 </div>
 
@@ -608,6 +621,39 @@ function dateLabel(s){
   return{text:s.slice(5).replace('-','/')+'日',cls:''}
 }
 
+// ===== WEEK UTILS (Week: Saturday → Friday, Friday is week end) =====
+function getWeekStart(dateStr){
+  const d=parseDate(dateStr);const day=d.getDay();
+  const offset=day===6?0:-(day+1);
+  d.setDate(d.getDate()+offset);return fmtDate(d);
+}
+function getWeekEnd(dateStr){
+  const d=parseDate(getWeekStart(dateStr));
+  d.setDate(d.getDate()+6);return fmtDate(d);
+}
+function getWeekDays(dateStr){
+  const start=parseDate(getWeekStart(dateStr));const days=[];
+  for(let i=0;i<7;i++){const d=new Date(start);d.setDate(d.getDate()+i);days.push(fmtDate(d))}
+  return days;
+}
+function getNextWeekStart(dateStr){
+  const d=parseDate(getWeekStart(dateStr));d.setDate(d.getDate()+7);return fmtDate(d);
+}
+function getNextWeekEnd(dateStr){
+  const d=parseDate(getNextWeekStart(dateStr));d.setDate(d.getDate()+6);return fmtDate(d);
+}
+function formatWeekRange(s,e){
+  const a=parseDate(s),b=parseDate(e);
+  return `${a.getMonth()+1}月${a.getDate()}日 - ${b.getMonth()+1}月${b.getDate()}日`;
+}
+function daysUntilFriday(dateStr){return daysBetween(dateStr,getWeekEnd(dateStr))}
+function weekdayName(dateStr){return['周日','周一','周二','周三','周四','周五','周六'][parseDate(dateStr).getDay()]}
+function shortDateLabel(dateStr){const d=parseDate(dateStr);return `${d.getMonth()+1}/${d.getDate()}`}
+function isTaskOnDate(t,dateStr){
+  const start=t.startDate,end=taskEndDate(t);
+  return dateStr>=start&&dateStr<=end;
+}
+
 // ===== TASK HELPERS =====
 function taskEndDate(t){return addDaysStr(t.startDate,t.days-1)}
 function isTaskActiveOnDate(t,dateStr){
@@ -672,14 +718,15 @@ function render(){
   updateCounts();
   document.body.classList.toggle('home-mode',currentView==='home');
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.view===currentView));
-  const titles={home:'首页',today:'今天',tomorrow:'明天',active:'进行中',done:'已完成'};
+  const titles={home:'本周计划',today:'今天',tomorrow:'明天',nextweek:'下周计划',active:'进行中',done:'已完成'};
   pageTitle.textContent=titles[currentView]||'';
-  const subs={today:todayStr(),tomorrow:tomorrowStr()};
+  const subs={today:todayStr(),tomorrow:tomorrowStr(),nextweek:formatWeekRange(getNextWeekStart(todayStr()),getNextWeekEnd(todayStr()))};
   pageSub.textContent=subs[currentView]||'';
   
   if(currentView==='home')renderHome();
   else if(currentView==='today')renderToday();
   else if(currentView==='tomorrow')renderTomorrow();
+  else if(currentView==='nextweek')renderNextWeek();
   else if(currentView==='active')renderActive();
   else if(currentView==='done')renderDone();
   
@@ -689,68 +736,89 @@ function render(){
 
 function updateCounts(){
   const today=todayStr(),tmr=tomorrowStr();
+  const nws=getNextWeekStart(today),nwe=getNextWeekEnd(today);
   document.getElementById('ct-today').textContent=tasks.filter(t=>!t.completed&&isTaskActiveOnDate(t,today)).length;
   document.getElementById('ct-tomorrow').textContent=tasks.filter(t=>!t.completed&&isTaskActiveOnDate(t,tmr)).length;
+  document.getElementById('ct-nextweek').textContent=tasks.filter(t=>{if(t.deleted||t.completed)return false;const ts=t.startDate,te=taskEndDate(t);return ts<=nwe&&te>=nws}).length;
   document.getElementById('ct-active').textContent=tasks.filter(t=>!t.completed&&t.days>1).length;
   document.getElementById('ct-done').textContent=tasks.filter(t=>t.completed).length;
 }
 
 function renderHome(){
-  const today=todayStr(),tmr=tomorrowStr();
-  const todayTasks=tasks.filter(t=>isTaskActiveOnDate(t,today));
-  const todayDone=todayTasks.filter(t=>t.completed||isTaskDoneToday(t)).length;
-  const todayTotal=todayTasks.length;
-  const pct=todayTotal>0?Math.round(todayDone/todayTotal*100):0;
-  const tmrTasks=tasks.filter(t=>isTaskActiveOnDate(t,tmr));
-  const now=new Date();
-  const dateStr=now.toLocaleDateString('zh-CN',{month:'long',day:'numeric',weekday:'long'});
+  const today=todayStr();
+  const weekStart=getWeekStart(today),weekEnd=getWeekEnd(today);
+  const weekDays=getWeekDays(today);
+  const nws=getNextWeekStart(today),nwe=getNextWeekEnd(today);
+  const daysLeft=daysUntilFriday(today);
   const checkSvg='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+
+  // All tasks overlapping this week (including completed)
+  const weekTasks=tasks.filter(t=>{
+    if(t.deleted)return false;
+    const ts=t.startDate,te=taskEndDate(t);
+    return ts<=weekEnd&&te>=weekStart;
+  });
+  const weekPending=weekTasks.filter(t=>!t.completed);
+  const weekDone=weekTasks.filter(t=>t.completed);
+  const weekPct=weekTasks.length>0?Math.round(weekDone.length/weekTasks.length*100):0;
 
   let html=`<div class="dash">
     <div class="dash-hero-compact">
-      <div class="dash-greet">${greeting()}，<span class="em">小王</span></div>
-      <div class="dash-date">${dateStr}${todayTotal>0?` · ${todayDone}/${todayTotal}已完成`:''}</div>
+      <div class="dash-greet">本周计划</div>
+      <div class="dash-date">${formatWeekRange(weekStart,weekEnd)}${daysLeft===0?' · 今天周五！':' · 距周五还有'+daysLeft+'天'}${weekTasks.length>0?' · '+weekDone.length+'/'+weekTasks.length+'已完成':''}</div>
     </div>`;
 
-  if(isNight()&&tmrTasks.length===0){
-    html+=`<div class="banner night compact" onclick="switchView('tomorrow')"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>该规划明天了，花5分钟安排好</div>`;
+  // Week progress bar
+  if(weekTasks.length>0){
+    html+=`<div class="week-progress"><div class="week-progress-bar"><div class="week-progress-fill" style="width:${weekPct}%"></div></div><span class="week-progress-text">${weekPct}%</span></div>`;
   }
 
-  // 今日待办 — 最顶部
-  html+=`<div class="dash-section"><div class="dash-sec-hdr"><span class="ds-title">今日待办</span>${todayTotal>0?`<span class="ds-pct">${pct}%</span>`:''}</div>`;
-  if(todayTasks.length===0){
-    html+=`<div class="empty-mini">今天还没有任务，点下方按钮添加</div>`;
-  }else{
-    html+=`<div class="task-list">`;
-    const pending=todayTasks.filter(t=>!t.completed&&!isTaskDoneToday(t)).sort((a,b)=>{
-      if(a.days!==b.days)return a.days-b.days;return b.createdAt-a.createdAt;
-    });
-    const done=todayTasks.filter(t=>t.completed||isTaskDoneToday(t));
-    pending.forEach(t=>{
-      const c=COLORS[t.color]||COLORS.slate;
-      const isMulti=t.days>1;
-      html+=`<div class="task-item" onclick="openEditor('${t.id}')"><div class="task-check" onclick="event.stopPropagation();toggleTaskCheck(this,'${t.id}',${isMulti},'${today}')">${checkSvg}</div><span class="task-dot" style="background:${c.hex}"></span><span class="task-title">${esc(t.title)}</span>${t.days>1?`<span class="task-prog">${getTaskProgress(t).done}/${t.days}天</span>`:''}</div>`;
-    });
-    done.forEach(t=>{
-      const c=COLORS[t.color]||COLORS.slate;
-      const isMulti=t.days>1;
-      html+=`<div class="task-item done" onclick="openEditor('${t.id}')"><div class="task-check checked" onclick="event.stopPropagation();toggleTaskCheck(this,'${t.id}',${isMulti},'${today}')">${checkSvg}</div><span class="task-dot" style="background:${c.hex}"></span><span class="task-title">${esc(t.title)}</span></div>`;
-    });
+  // Friday reminder banner
+  if(daysLeft<=1&&daysLeft>=0){
+    html+=`<div class="banner week-banner" onclick="switchView('nextweek')"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M8 2v4M16 2v4M3 10h18"/></svg>${daysLeft===0?'今天周五，该规划下周了':'明天就周五了，记得规划下周'}</div>`;
+  }
+
+  // Tasks grouped by day (7 days)
+  weekDays.forEach(dateStr=>{
+    const dayTasks=tasks.filter(t=>!t.deleted&&isTaskOnDate(t,dateStr));
+    const isToday=dateStr===today;
+    const isPast=dateStr<today;
+    const dn=weekdayName(dateStr),dl=shortDateLabel(dateStr);
+
+    html+=`<div class="week-day${isToday?' today':''}${isPast?' past':''}">
+      <div class="dash-sec-hdr"><span class="ds-title">${dn} ${dl}${isToday?' · 今天':''}</span>${dayTasks.length>0?`<span class="ds-pct">${dayTasks.filter(t=>t.completed||isTaskDoneToday(t)).length}/${dayTasks.length}</span>`:''}</div>`;
+
+    if(dayTasks.length===0){
+      html+=`<div class="week-day-empty">${isPast?'无任务':'—'}</div>`;
+    }else{
+      html+=`<div class="task-list">`;
+      const pending=dayTasks.filter(t=>!t.completed&&!isTaskDoneToday(t));
+      const done=dayTasks.filter(t=>t.completed||isTaskDoneToday(t));
+      pending.forEach(t=>{
+        const c=COLORS[t.color]||COLORS.slate;const isMulti=t.days>1;
+        html+=`<div class="task-item" onclick="openEditor('${t.id}')"><div class="task-check" onclick="event.stopPropagation();toggleTaskCheck(this,'${t.id}',${isMulti},'${dateStr}')">${checkSvg}</div><span class="task-dot" style="background:${c.hex}"></span><span class="task-title">${esc(t.title)}</span>${t.days>1?`<span class="task-prog">${getTaskProgress(t).done}/${t.days}天</span>`:''}</div>`;
+      });
+      done.forEach(t=>{
+        const c=COLORS[t.color]||COLORS.slate;const isMulti=t.days>1;
+        html+=`<div class="task-item done" onclick="openEditor('${t.id}')"><div class="task-check checked" onclick="event.stopPropagation();toggleTaskCheck(this,'${t.id}',${isMulti},'${dateStr}')">${checkSvg}</div><span class="task-dot" style="background:${c.hex}"></span><span class="task-title">${esc(t.title)}</span></div>`;
+      });
+      html+=`</div>`;
+    }
     html+=`</div>`;
-  }
-  html+=`</div>`;
+  });
 
-  // 两个操作按钮
-  html+=`<div class="dash-actions"><button class="dash-btn primary" onclick="switchView('today');setTimeout(()=>document.getElementById('qaInput')?.focus(),100)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span>新增今日待办</span></button><button class="dash-btn secondary" onclick="switchView('tomorrow');setTimeout(()=>document.getElementById('qaInput')?.focus(),100)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg><span>规划明日待办</span></button></div>`;
+  // Action buttons
+  html+=`<div class="dash-actions"><button class="dash-btn primary" onclick="switchView('today');setTimeout(()=>document.getElementById('qaInput')?.focus(),100)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span>新增本周任务</span></button><button class="dash-btn secondary" onclick="switchView('nextweek')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg><span>规划下周</span></button></div>`;
 
-  // 明日预览（紧凑）
-  if(tmrTasks.length>0){
-    html+=`<div class="dash-section" style="margin-top:20px"><div class="dash-sec-hdr"><span class="ds-title">明日预览</span><span class="ds-link" onclick="switchView('tomorrow')">全部 ›</span></div><div class="task-list">`;
-    tmrTasks.slice(0,4).forEach(t=>{
+  // Next week preview
+  const nextTasks=tasks.filter(t=>!t.deleted&&(()=>{const ts=t.startDate,te=taskEndDate(t);return ts<=nwe&&te>=nws})());
+  if(nextTasks.length>0){
+    html+=`<div class="dash-section" style="margin-top:20px"><div class="dash-sec-hdr"><span class="ds-title">下周预览</span><span class="ds-link" onclick="switchView('nextweek')">全部 ›</span></div><div class="task-list">`;
+    nextTasks.slice(0,5).forEach(t=>{
       const c=COLORS[t.color]||COLORS.slate;
-      html+=`<div class="task-item" onclick="switchView('tomorrow')"><span class="task-dot" style="background:${c.hex}"></span><span class="task-title">${esc(t.title)}</span>${t.days>1?`<span class="task-prog">${getTaskProgress(t).done}/${t.days}天</span>`:''}</div>`;
+      html+=`<div class="task-item" onclick="switchView('nextweek')"><span class="task-dot" style="background:${c.hex}"></span><span class="task-title">${esc(t.title)}</span>${t.days>1?`<span class="task-prog">${getTaskProgress(t).done}/${t.days}天</span>`:''}</div>`;
     });
-    if(tmrTasks.length>4)html+=`<div class="task-more" onclick="switchView('tomorrow')">还有 ${tmrTasks.length-4} 项 ›</div>`;
+    if(nextTasks.length>5)html+=`<div class="task-more" onclick="switchView('nextweek')">还有 ${nextTasks.length-5} 项 ›</div>`;
     html+=`</div></div>`;
   }
 
@@ -816,6 +884,43 @@ function renderTomorrow(){
   }
   content.innerHTML=html;
   bindQuickAdd(tmr);
+}
+
+function renderNextWeek(){
+  const today=todayStr();
+  const nws=getNextWeekStart(today),nwe=getNextWeekEnd(today);
+  const weekDays=getWeekDays(nws);
+  const checkSvg='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+
+  let html=renderQuickAdd(nws,'为下周添加任务...');
+
+  html+=`<div class="dash" style="max-width:none;padding:0 0 20px"><div class="dash-hero-compact" style="margin-bottom:12px"><div class="dash-greet" style="font-size:20px">下周计划</div><div class="dash-date">${formatWeekRange(nws,nwe)}</div></div>`;
+
+  weekDays.forEach(dateStr=>{
+    const dayTasks=tasks.filter(t=>!t.deleted&&isTaskOnDate(t,dateStr));
+    const dn=weekdayName(dateStr),dl=shortDateLabel(dateStr);
+    html+=`<div class="week-day"><div class="dash-sec-hdr"><span class="ds-title">${dn} ${dl}</span>${dayTasks.length>0?`<span class="ds-pct">${dayTasks.filter(t=>t.completed).length}/${dayTasks.length}</span>`:''}</div>`;
+    if(dayTasks.length===0){
+      html+=`<div class="week-day-empty">—</div>`;
+    }else{
+      html+=`<div class="task-list">`;
+      const pending=dayTasks.filter(t=>!t.completed);
+      const done=dayTasks.filter(t=>t.completed);
+      pending.forEach(t=>{
+        const c=COLORS[t.color]||COLORS.slate;const isMulti=t.days>1;
+        html+=`<div class="task-item" onclick="openEditor('${t.id}')"><div class="task-check" onclick="event.stopPropagation();toggleTaskCheck(this,'${t.id}',${isMulti},'${dateStr}')">${checkSvg}</div><span class="task-dot" style="background:${c.hex}"></span><span class="task-title">${esc(t.title)}</span>${t.days>1?`<span class="task-prog">${getTaskProgress(t).done}/${t.days}天</span>`:''}</div>`;
+      });
+      done.forEach(t=>{
+        const c=COLORS[t.color]||COLORS.slate;
+        html+=`<div class="task-item done" onclick="openEditor('${t.id}')"><div class="task-check checked">${checkSvg}</div><span class="task-dot" style="background:${c.hex}"></span><span class="task-title">${esc(t.title)}</span></div>`;
+      });
+      html+=`</div>`;
+    }
+    html+=`</div>`;
+  });
+  html+=`</div>`;
+  content.innerHTML=html;
+  bindQuickAdd(nws);
 }
 
 function renderActive(){
@@ -981,29 +1086,31 @@ async function togglePush(){
   if(perm==='granted'){
     document.getElementById('pushDot').className='push-dot on';
     document.getElementById('pushTxt').textContent='提醒已开启';
-    showToast('提醒已开启，每天10:00和22:00会提醒你');
-    new Notification('今天和明天',{body:'提醒已开启，每天10:00和22:00会提醒你'});
+    showToast('提醒已开启，每周五16:00会提醒你规划下周');
+    new Notification('今天和明天',{body:'提醒已开启，每周五16:00会提醒你规划下周'});
   }else{
     showToast('通知权限被拒绝');
   }
 }
 
-// Scheduled local notification check
+// Scheduled local notification check — Friday 4PM weekly planning reminder
 function checkScheduledNotifications(){
   if(Notification.permission!=='granted')return;
   const now=new Date();
-  const key=`tt_notified_${now.toDateString()}_${now.getHours()}`;
+  const today=todayStr();
+  const weekKey=getWeekStart(today); // unique per week
+  const key=`tt_notified_friday_${weekKey}`;
   if(localStorage.getItem(key))return;
-  if((now.getHours()>=22||now.getHours()<2)&&!localStorage.getItem('tt_notified_plan')){
-    localStorage.setItem('tt_notified_plan',key);
-    new Notification('今天和明天',{body:'该规划明天的任务了，花5分钟安排好明天',icon:'icon.svg',tag:'plan'});
+  // Friday (day 5) between 4PM and 8PM
+  if(now.getDay()===5&&now.getHours()>=16&&now.getHours()<20){
+    localStorage.setItem(key,'1');
+    new Notification('今天和明天 · 周五规划提醒',{body:'本周即将结束，花10分钟规划下周计划吧',icon:'icon.svg',tag:'friday-plan',requireInteraction:true});
   }
-  if(now.getHours()>=10&&now.getHours()<14&&!localStorage.getItem('tt_notified_today')){
-    localStorage.setItem('tt_notified_today',key);
-    new Notification('今天和明天',{body:'新的一天开始了，今天有任务等着你完成',icon:'icon.svg',tag:'today'});
+  // Also check on Saturday morning if not done yet
+  if(now.getDay()===6&&now.getHours()>=9&&now.getHours()<12){
+    localStorage.setItem(key,'1');
+    new Notification('今天和明天 · 规划提醒',{body:'新的一周开始了，记得规划本周计划',icon:'icon.svg',tag:'week-plan'});
   }
-  // cleanup old keys
-  if(now.getHours()===0){localStorage.removeItem('tt_notified_plan');localStorage.removeItem('tt_notified_today')}
 }
 
 // ===== THEME =====
@@ -1064,19 +1171,20 @@ function showToast(msg,action,cb){
 
 // ===== SEED =====
 function seedIfEmpty(){
-  if(localStorage.getItem('tt_seeded'))return;  // Only seed once, never re-seed after clear
+  if(localStorage.getItem('tt_seeded'))return;
   if(tasks.length>0)return;
-  const today=todayStr(),tmr=tomorrowStr(),d3ago=addDaysStr(today,-3);
+  const today=todayStr();
+  const wd=getWeekDays(today); // [Sat,Sun,Mon,Tue,Wed,Thu,Fri]
   tasks=[
-    {id:uid(),title:'拍摄新视频素材',notes:'参考上周爆款选题',startDate:today,days:1,color:'indigo',dayProgress:[false],completed:false,completedAt:null,createdAt:Date.now()-5000},
-    {id:uid(),title:'回复评论区互动',notes:'',startDate:today,days:1,color:'rose',dayProgress:[true],completed:true,completedAt:Date.now()-1000,createdAt:Date.now()-4000},
-    {id:uid(),title:'剪辑本周长视频',notes:'3分钟主视频',startDate:d3ago,days:7,color:'violet',dayProgress:[true,true,true,false,false,false,false],completed:false,completedAt:null,createdAt:Date.now()-3000},
-    {id:uid(),title:'研究新赛道选题',notes:'收集10个对标账号',startDate:today,days:3,color:'amber',dayProgress:[false,false,false],completed:false,completedAt:null,createdAt:Date.now()-2000},
-    {id:uid(),title:'发布抖音视频',notes:'晚上8点发布',startDate:tmr,days:1,color:'rose',dayProgress:[false],completed:false,completedAt:null,createdAt:Date.now()-1000},
-    {id:uid(),title:'健身房30分钟',notes:'',startDate:tmr,days:1,color:'emerald',dayProgress:[false],completed:false,completedAt:null,createdAt:Date.now()-500},
+    {id:uid(),title:'拍摄新视频素材',notes:'参考上周爆款选题',startDate:wd[0],days:1,color:'indigo',dayProgress:[false],completed:false,completedAt:null,createdAt:Date.now()-5000},
+    {id:uid(),title:'回复评论区互动',notes:'',startDate:wd[0],days:1,color:'rose',dayProgress:[true],completed:true,completedAt:Date.now()-1000,createdAt:Date.now()-4000},
+    {id:uid(),title:'剪辑本周长视频',notes:'3分钟主视频',startDate:wd[0],days:7,color:'violet',dayProgress:[true,false,false,false,false,false,false],completed:false,completedAt:null,createdAt:Date.now()-3000},
+    {id:uid(),title:'研究新赛道选题',notes:'收集10个对标账号',startDate:wd[2],days:3,color:'amber',dayProgress:[false,false,false],completed:false,completedAt:null,createdAt:Date.now()-2000},
+    {id:uid(),title:'发布抖音视频',notes:'周五晚上8点发布',startDate:wd[6],days:1,color:'rose',dayProgress:[false],completed:false,completedAt:null,createdAt:Date.now()-1000},
+    {id:uid(),title:'健身房30分钟',notes:'',startDate:wd[3],days:1,color:'emerald',dayProgress:[false],completed:false,completedAt:null,createdAt:Date.now()-500},
   ];
   saveData();
-  localStorage.setItem('tt_seeded','1');  // Mark as seeded so we never auto-seed again
+  localStorage.setItem('tt_seeded','1');
 }
 
 // ===== INIT =====

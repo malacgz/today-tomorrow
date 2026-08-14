@@ -243,22 +243,10 @@ function removeSubscription(endpoint) {
 // 定时推送（时区 Asia/Shanghai）
 // ===========================================================================
 
-// 每天 22:00 — 规划明天
-cron.schedule('0 22 * * *', () => {
-  console.log('\n===== 定时任务 22:00 (北京时间) =====');
-  sendPushNotification('今天和明天', '该规划明天的任务了，花5分钟安排好明天');
-}, { timezone: 'Asia/Shanghai' });
-
-// 每天 10:00 — 今日提醒
-cron.schedule('0 10 * * *', () => {
-  console.log('\n===== 定时任务 10:00 (北京时间) =====');
-  sendPushNotification('今天和明天', '新的一天开始了，今天有任务等着你完成');
-}, { timezone: 'Asia/Shanghai' });
-
-// 每周五 16:00 — 周总结
+// 每周五 16:00 — 规划下周提醒
 cron.schedule('0 16 * * 5', () => {
   console.log('\n===== 定时任务 周五 16:00 (北京时间) =====');
-  sendPushNotification('今天和明天', '周五了，花15分钟总结本周、规划下周');
+  sendPushNotification('今天和明天 · 周五规划提醒', '本周即将结束，花10分钟规划下周计划吧');
 }, { timezone: 'Asia/Shanghai' });
 
 // ===========================================================================
@@ -289,7 +277,7 @@ app.get('/', (req, res) => {
       'GET /trigger?type=morning|night|friday': '手动触发推送',
       'GET /health': '健康检查'
     },
-    scheduledPushes: ['每天 22:00 规划明天', '每天 10:00 今日提醒', '每周五 16:00 周总结']
+    scheduledPushes: ['每周五 16:00 规划下周提醒']
   });
 });
 
