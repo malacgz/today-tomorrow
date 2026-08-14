@@ -1,4 +1,5 @@
 node_modules/
 vapid-keys.json
 subscriptions.json
+data/
 *.log

@@ -1,17 +1,9 @@
 services:
   - type: web
-    name: today-tomorrow-push
+    name: today-tomorrow
     runtime: node
     plan: free
     buildCommand: npm install
     startCommand: node push-server.js
     healthCheckPath: /health
-    envVars:
-      - key: VAPID_PUBLIC_KEY
-        sync: false
-      - key: VAPID_PRIVATE_KEY
-        sync: false
-      - key: SUPABASE_URL
-        value: https://uufbkzdbcgxmnlphggxa.supabase.co
-      - key: SUPABASE_SERVICE_KEY
-        sync: false
+    autoDeploy: true

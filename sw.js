@@ -1,5 +1,5 @@
 // 今天和明天 Service Worker
-const CACHE_NAME = 'today-tomorrow-v1';
+const CACHE_NAME = 'today-tomorrow-v2';
 const ASSETS = ['./', './index.html', './manifest.json', './icon.svg'];
 
 // Install: cache app shell
