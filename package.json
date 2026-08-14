@@ -1,0 +1,14 @@
+{
+  "name": "today-tomorrow-push-server",
+  "version": "1.0.0",
+  "description": "为 PWA 应用「今天和明天」提供真实手机推送通知的 Node.js 推送服务器",
+  "main": "push-server.js",
+  "scripts": {
+    "start": "node push-server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "web-push": "^3.6.7",
+    "node-cron": "^3.0.3"
+  }
+}
