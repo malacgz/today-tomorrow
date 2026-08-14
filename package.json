@@ -7,8 +7,9 @@
     "start": "node push-server.js"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.112.3",
     "express": "^4.19.2",
-    "web-push": "^3.6.7",
-    "node-cron": "^3.0.3"
+    "node-cron": "^3.0.3",
+    "web-push": "^3.6.7"
   }
 }

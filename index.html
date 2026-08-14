@@ -14,6 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <title>今天和明天</title>
 <style>
 :root{
@@ -71,6 +72,13 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 .push-dot.on{background:var(--green);box-shadow:0 0 6px rgba(16,185,129,.4)}
 .push-dot.local{background:var(--c-amber)}
 .push-dot.off{background:var(--ink-3)}
+.sync-status{margin:0 12px 4px;padding:6px 10px;border-radius:var(--r-sm);background:var(--surface-2);display:flex;align-items:center;gap:8px;font-size:11px;color:var(--ink-2);cursor:pointer;transition:all .15s}
+.sync-status:hover{background:var(--surface-3)}
+.sync-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.sync-dot.on{background:var(--green);box-shadow:0 0 6px rgba(16,185,129,.4)}
+.sync-dot.syncing{background:var(--c-amber);animation:pulse 1s infinite}
+.sync-dot.off{background:var(--ink-3)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 .sb-foot{padding:10px 12px 14px;border-top:1px solid var(--line);display:flex;align-items:center;gap:8px}
 .tbtn{width:36px;height:36px;border:1px solid var(--line);background:var(--surface);border-radius:var(--r-sm);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--ink-2);transition:all .2s}
 .tbtn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
@@ -327,6 +335,10 @@ body.home-mode .content{padding:0}
       <div class="nav-item" data-view="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg><span>进行中</span><span class="ct" id="ct-active">0</span></div>
       <div class="nav-item" data-view="done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg><span>已完成</span><span class="ct" id="ct-done">0</span></div>
     </nav>
+    <div class="sync-status" id="syncStatus" onclick="syncCloud()">
+      <span class="sync-dot off" id="syncDot"></span>
+      <span id="syncTxt">云端未连接</span>
+    </div>
     <div class="push-status" id="pushStatus" onclick="setupPush()">
       <span class="push-dot off" id="pushDot"></span>
       <span id="pushTxt">点击开启推送提醒</span>
@@ -392,6 +404,96 @@ const COLORS={
 const COLOR_KEYS=Object.keys(COLORS);
 const DAYS_PRESETS=[1,3,7,14,30];
 
+// ===== SUPABASE CLOUD SYNC =====
+const SB_URL='https://uufbkzdbcgxmnlphggxa.supabase.co';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV1ZmJremRiY2d4bW5scGhnZ3hhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzMzQyODMsImV4cCI6MjEwMDkxMDI4M30.xlztgrZ8UUIs-Degy9EYUJftw7XJ_ke7Ae6PbAUva-4';
+const PUSH_SERVER_URL=''; // 留空则使用本地服务器，部署后填写Render地址
+let sb=null,sbChannel=null,sbSyncing=false;
+
+function initSupabase(){
+  try{
+    if(typeof supabase!=='undefined'){
+      sb=supabase.createClient(SB_URL,SB_KEY,{realtime:{params:{eventsPerSecond:5}}});
+      setSyncStatus('on','云端已连接');
+      subscribeRealtime();
+      syncFromCloud();
+    }else{setSyncStatus('off','Supabase未加载')}
+  }catch(e){console.error('Supabase init error:',e);setSyncStatus('off','云端连接失败')}
+}
+
+function setSyncStatus(state,txt){
+  const dot=document.getElementById('syncDot'),t=document.getElementById('syncTxt');
+  if(!dot||!t)return;
+  dot.className='sync-dot '+state;t.textContent=txt;
+}
+
+async function syncFromCloud(){
+  if(!sb||sbSyncing)return;sbSyncing=true;
+  setSyncStatus('syncing','同步中...');
+  try{
+    const{data,error}=await sb.from('today_tomorrow_tasks').select('*').eq('deleted',false).order('created_at',{ascending:false});
+    if(error)throw error;
+    if(data&&data.length>0){
+      // Merge: cloud data takes priority but keep local-only tasks
+      const cloudIds=new Set(data.map(t=>t.id));
+      const localOnly=tasks.filter(t=>!cloudIds.has(t.id)&&t._localOnly);
+      tasks=data.map(t=>({
+        id:t.id,title:t.title,notes:t.notes||'',startDate:t.start_date,days:t.days,
+        color:t.color,dayProgress:typeof t.day_progress==='string'?JSON.parse(t.day_progress):t.day_progress,
+        completed:t.completed,completedAt:t.completed_at,createdAt:t.created_at
+      }));
+      tasks.push(...localOnly);
+      saveData();render();
+    }
+    setSyncStatus('on','云端已同步');
+  }catch(e){console.error('Sync from cloud error:',e);setSyncStatus('on','本地模式')}
+  sbSyncing=false;
+}
+
+async function syncTaskToCloud(t){
+  if(!sb)return;
+  try{
+    const record={id:t.id,title:t.title,notes:t.notes||'',start_date:t.startDate,days:t.days,
+      color:t.color,day_progress:JSON.stringify(t.dayProgress),completed:t.completed,
+      completed_at:t.completedAt,created_at:t.createdAt,updated_at:Date.now(),deleted:false};
+    await sb.from('today_tomorrow_tasks').upsert(record);
+  }catch(e){console.error('Sync to cloud error:',e)}
+}
+
+async function deleteTaskFromCloud(id){
+  if(!sb)return;
+  try{
+    await sb.from('today_tomorrow_tasks').update({deleted:true,updated_at:Date.now()}).eq('id',id);
+  }catch(e){console.error('Delete from cloud error:',e)}
+}
+
+function subscribeRealtime(){
+  if(!sb)return;
+  sbChannel=sb.channel('today_tomorrow_tasks_changes')
+    .on('postgres_changes',{event:'*',schema:'public',table:'today_tomorrow_tasks'},payload=>{
+      if(sbSyncing)return;
+      if(payload.eventType==='DELETE'){tasks=tasks.filter(t=>t.id!==payload.old.id);saveData();render();}
+      else if(payload.eventType==='INSERT'||payload.eventType==='UPDATE'){
+        const n=payload.new;
+        if(n.deleted){tasks=tasks.filter(t=>t.id!==n.id);}
+        else{
+          const idx=tasks.findIndex(t=>t.id===n.id);
+          const task={id:n.id,title:n.title,notes:n.notes||'',startDate:n.start_date,days:n.days,
+            color:n.color,dayProgress:typeof n.day_progress==='string'?JSON.parse(n.day_progress):n.day_progress,
+            completed:n.completed,completedAt:n.completed_at,createdAt:n.created_at};
+          if(idx>=0)tasks[idx]=task;else tasks.unshift(task);
+        }
+        saveData();render();
+      }
+    }).subscribe();
+}
+
+async function syncCloud(){
+  if(!sb){showToast('云端未连接');return}
+  await syncFromCloud();
+  showToast('同步完成');
+}
+
 // ===== DATA =====
 const STORE_KEY='today_tomorrow_v1';
 const SETTINGS_KEY='today_tomorrow_settings_v1';
@@ -407,10 +509,10 @@ function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2
 function addTask(title,opts={}){
   const days=opts.days||1;
   const t={id:uid(),title,notes:opts.notes||'',startDate:opts.startDate||todayStr(),days,color:opts.color||'indigo',dayProgress:new Array(days).fill(false),completed:false,completedAt:null,createdAt:Date.now()};
-  tasks.unshift(t);saveData();return t;
+  t._localOnly=true;tasks.unshift(t);saveData();syncTaskToCloud(t);t._localOnly=false;return t;
 }
-function updateTask(id,up){const t=tasks.find(t=>t.id===id);if(!t)return;Object.assign(t,up);saveData()}
-function deleteTask(id){const i=tasks.findIndex(t=>t.id===id);if(i<0)return;const bak={task:tasks[i],index:i};tasks.splice(i,1);saveData();showToast('已删除','撤销',()=>{tasks.splice(bak.index,0,bak.task);saveData();render()})}
+function updateTask(id,up){const t=tasks.find(t=>t.id===id);if(!t)return;Object.assign(t,up);saveData();syncTaskToCloud(tasks.find(t=>t.id===id))}
+function deleteTask(id){const i=tasks.findIndex(t=>t.id===id);if(i<0)return;const bak={task:tasks[i],index:i};tasks.splice(i,1);saveData();deleteTaskFromCloud(id);showToast('已删除','撤销',()=>{tasks.splice(bak.index,0,bak.task);saveData();render()})}
 
 // ===== DATE UTILS =====
 function pad(n){return n<10?'0'+n:''+n}
@@ -790,13 +892,13 @@ async function setupPush(){
   dot.className='push-dot local';txt.textContent='本地通知已开启';
   // Try push server
   try{
-    const res=await fetch('/vapid-public-key');
+    const res=await fetch((PUSH_SERVER_URL||'')+'/vapid-public-key');
     if(!res.ok)throw new Error('no server');
     const data=await res.json();
     const reg=await navigator.serviceWorker.ready;
     let sub=await reg.pushManager.getSubscription();
     if(!sub){sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(data.publicKey)})}
-    await fetch('/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(sub)});
+    await fetch((PUSH_SERVER_URL||'')+'/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(sub)});
     dot.className='push-dot on';txt.textContent='手机推送已开启';
     showToast('推送已开启！每晚10点规划明天，每早10点提醒今日');
     new Notification('今天和明天 · 推送已开启',{body:'每晚10点提醒规划明天，每早10点提醒今日任务',icon:'icon.svg'});
@@ -887,6 +989,7 @@ function seedIfEmpty(){
 
 // ===== INIT =====
 loadData();seedIfEmpty();applyTheme();render();
+initSupabase();
 checkScheduledNotifications();
 setInterval(checkScheduledNotifications,60000);
 
